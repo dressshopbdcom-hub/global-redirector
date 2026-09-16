@@ -3,16 +3,16 @@ import { kv } from '@vercel/kv';
 export default async function handler(req, res) {
   // আপনার ১০টি লিংক নিচে সিরিয়াল অনুযায়ী বসিয়ে দিন
   const links = [
-    "instagram.com",
-    "facebook.com",
-    "youtube.com",
-    "google.com/",
-    "microsoft.com ",
-    "x.com",
-    "linkedin.com",
-    "netflix.com ",
-    "wikipedia.org",
-    "amazon.com"
+    "https://viral.reelsvideos.top/viral11vip/?utm_source=Saim&utm_medium=SIAM1",
+    "https://viral.reelsvideos.top/viral11vip/?utm_source=Saim&utm_medium=SIAM2",
+    "https://viral.reelsvideos.top/viral11vip/?utm_source=Saim&utm_medium=SIAM3",
+    "https://viral.reelsvideos.top/viral11vip/?utm_source=Saim&utm_medium=SIAM4",
+    "https://viral.reelsvideos.top/viral11vip/?utm_source=Saim&utm_medium=SIAM5",
+    "https://vip.mixclips.top/mix44vip/?utm_source=Saim&utm_medium=SIAM6",
+    "https://vip.mixclips.top/mix44vip/?utm_source=Saim&utm_medium=SIAM7",
+    "https://vip.mixclips.top/mix44vip/?utm_source=Saim&utm_medium=SIAM8",
+    "https://vip.mixclips.top/mix44vip/?utm_source=Saim&utm_medium=SIAM9",
+    "https://vip.mixclips.top/mix44vip/?utm_source=Saim&utm_medium=SIAM10"
   ];
 
   try {
