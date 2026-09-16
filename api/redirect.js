@@ -1,6 +1,5 @@
 import { kv } from '@vercel/kv';
 
-// এটি কোডকে ব্রাউজারের সবচেয়ে নিকটবর্তী সার্ভারে রান করাবে (Super Fast)
 export const config = {
   runtime: 'edge',
 };
@@ -16,21 +15,19 @@ export default async function handler(req) {
     "https://vip.mixclips.top/mix44vip/?utm_source=Saim&utm_medium=SIAM7",
     "https://vip.mixclips.top/mix44vip/?utm_source=Saim&utm_medium=SIAM8",
     "https://vip.mixclips.top/mix44vip/?utm_source=Saim&utm_medium=SIAM9",
-    "https://vip.mixclips.top/mix44vip/?utm_source=Saim&utm_medium=SIAM10"
+    "https://vip.mixclips.top/mix44vip/?utm_source=Saim&utm_medium=SIAM10",
+    "https://vip.mixclips.top/mix44vip/?utm_source=Saim&utm_medium=SIAM11",
+    "https://vip.mixclips.top/mix44vip/?utm_source=Saim&utm_medium=SIAM12",
+    "https://vip.mixclips.top/mix44vip/?utm_source=Saim&utm_medium=SIAM13",
+    "https://vip.mixclips.top/mix44vip/?utm_source=Saim&utm_medium=SIAM14",
+    "https://vip.mixclips.top/mix44vip/?utm_source=Saim&utm_medium=SIAM15"
   ];
 
   try {
-    let currentIndex = await kv.get('redirect_index');
-    currentIndex = currentIndex !== null ? parseInt(currentIndex) : 0;
+    const nextIndex = await kv.incr('redirect_index');
+    const selectedIndex = (nextIndex - 1) % links.length;
 
-    const selectedLink = links[currentIndex] || links[0];
-    let nextIndex = (currentIndex + 1) % links.length;
-
-    // ডাটাবেস ব্যাকগ্রাউন্ডে সেভ হতে থাকবে
-    await kv.set('redirect_index', nextIndex);
-
-    // চোখের পলকে রিডাইরেক্ট করবে
-    return Response.redirect(selectedLink, 302);
+    return Response.redirect(links[selectedIndex], 302);
   } catch (error) {
     return Response.redirect(links[0], 302);
   }
