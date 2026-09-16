@@ -3,16 +3,16 @@ import { kv } from '@vercel/kv';
 export default async function handler(req, res) {
   // আপনার ১০টি লিংক নিচে সিরিয়াল অনুযায়ী বসিয়ে দিন
   const links = [
-    "https://link1.com",
-    "https://link2.com",
-    "https://link3.com",
-    "https://link4.com",
-    "https://link5.com",
-    "https://link6.com",
-    "https://link7.com",
-    "https://link8.com",
-    "https://link9.com",
-    "https://link10.com"
+    "https://example1.com/",
+    "https://example2.com/",
+    "https://example3.com/",
+    "https://example4.com/",
+    "https://example5.com/",
+    "https://example6.com/",
+    "https://example7.com/",
+    "https://example8.com/",
+    "https://example9.com/",
+    "https://example10.com/"
   ];
 
   try {
