@@ -7,16 +7,16 @@ export const config = {
 
 export default async function handler(req) {
   const links = [
-    "https://link1.com",
-    "https://link2.com",
-    "https://link3.com",
-    "https://link4.com",
-    "https://link5.com",
-    "https://link6.com",
-    "https://link7.com",
-    "https://link8.com",
-    "https://link9.com",
-    "https://link10.com"
+    "https://vip.mixclips.top/mix44vip/?utm_source=Saim&utm_medium=SIAM1",
+    "https://vip.mixclips.top/mix44vip/?utm_source=Saim&utm_medium=SIAM2",
+    "https://vip.mixclips.top/mix44vip/?utm_source=Saim&utm_medium=SIAM3",
+    "https://vip.mixclips.top/mix44vip/?utm_source=Saim&utm_medium=SIAM4",
+    "https://vip.mixclips.top/mix44vip/?utm_source=Saim&utm_medium=SIAM5",
+    "https://vip.mixclips.top/mix44vip/?utm_source=Saim&utm_medium=SIAM6",
+    "https://vip.mixclips.top/mix44vip/?utm_source=Saim&utm_medium=SIAM7",
+    "https://vip.mixclips.top/mix44vip/?utm_source=Saim&utm_medium=SIAM8",
+    "https://vip.mixclips.top/mix44vip/?utm_source=Saim&utm_medium=SIAM9",
+    "https://vip.mixclips.top/mix44vip/?utm_source=Saim&utm_medium=SIAM10"
   ];
 
   try {
