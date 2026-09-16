@@ -1,38 +1,37 @@
 import { kv } from '@vercel/kv';
 
-export default async function handler(req, res) {
-  // আপনার ১০টি লিংক নিচে সিরিয়াল অনুযায়ী বসিয়ে দিন
+// এটি কোডকে ব্রাউজারের সবচেয়ে নিকটবর্তী সার্ভারে রান করাবে (Super Fast)
+export const config = {
+  runtime: 'edge',
+};
+
+export default async function handler(req) {
   const links = [
-    "https://viral.reelsvideos.top/viral11vip/?utm_source=Saim&utm_medium=SIAM1",
-    "https://viral.reelsvideos.top/viral11vip/?utm_source=Saim&utm_medium=SIAM2",
-    "https://viral.reelsvideos.top/viral11vip/?utm_source=Saim&utm_medium=SIAM3",
-    "https://viral.reelsvideos.top/viral11vip/?utm_source=Saim&utm_medium=SIAM4",
-    "https://viral.reelsvideos.top/viral11vip/?utm_source=Saim&utm_medium=SIAM5",
-    "https://vip.mixclips.top/mix44vip/?utm_source=Saim&utm_medium=SIAM6",
-    "https://vip.mixclips.top/mix44vip/?utm_source=Saim&utm_medium=SIAM7",
-    "https://vip.mixclips.top/mix44vip/?utm_source=Saim&utm_medium=SIAM8",
-    "https://vip.mixclips.top/mix44vip/?utm_source=Saim&utm_medium=SIAM9",
-    "https://vip.mixclips.top/mix44vip/?utm_source=Saim&utm_medium=SIAM10"
+    "https://link1.com",
+    "https://link2.com",
+    "https://link3.com",
+    "https://link4.com",
+    "https://link5.com",
+    "https://link6.com",
+    "https://link7.com",
+    "https://link8.com",
+    "https://link9.com",
+    "https://link10.com"
   ];
 
   try {
     let currentIndex = await kv.get('redirect_index');
-    if (currentIndex === null || currentIndex === undefined) {
-      currentIndex = 0;
-    } else {
-      currentIndex = parseInt(currentIndex);
-    }
+    currentIndex = currentIndex !== null ? parseInt(currentIndex) : 0;
 
-    const selectedLink = links[currentIndex];
+    const selectedLink = links[currentIndex] || links[0];
+    let nextIndex = (currentIndex + 1) % links.length;
 
-    let nextIndex = currentIndex + 1;
-    if (nextIndex >= links.length) {
-      nextIndex = 0; // ১০ নম্বর লিংকের পর আবার ১ নম্বর লিংকে ফিরে যাবে
-    }
-
+    // ডাটাবেস ব্যাকগ্রাউন্ডে সেভ হতে থাকবে
     await kv.set('redirect_index', nextIndex);
-    return res.redirect(307, selectedLink);
+
+    // চোখের পলকে রিডাইরেক্ট করবে
+    return Response.redirect(selectedLink, 302);
   } catch (error) {
-    return res.redirect(307, links[0]);
+    return Response.redirect(links[0], 302);
   }
 }
