@@ -1,20 +1,21 @@
 
-import { kv } from '@vercel/kv';
+import { Redis } from '@upstash/redis';
 
 export const config = {
   runtime: 'edge',
 };
 
-export default async function handler(req) {
-  const LINK1 = "https://chatgpt.com/";
-  const LINK2 = "https://console.upstash.com/";
+const redis = Redis.fromEnv();
 
-  const COOKIE = "saim_visitor";
-  const DURATION = 12 * 60 * 60;
+export default async function handler(req) {
+  const LINK1 = "https://vip.mixclips.top/mix44vip/?utm_source=Saim&utm_medium=SIAM1";
+  const LINK2 = "https://vip.mixclips.top/mix44vip/?utm_source=Saim&utm_medium=SIAM2";
+
+  const DURATION = 43200;
 
   try {
-    const cookieHeader = req.headers.get('cookie') || '';
-    const match = cookieHeader.match(
+    const cookies = req.headers.get('cookie') || '';
+    const match = cookies.match(
       /(?:^|;\s*)saim_visitor=([a-f0-9-]{36})(?:;|$)/
     );
 
@@ -24,9 +25,9 @@ export default async function handler(req) {
 
     const key = `saim:${visitorId}`;
 
-    const result = await kv.set(key, '1', {
+    const result = await redis.set(key, '1', {
       nx: true,
-      ex: DURATION
+      ex: DURATION,
     });
 
     const destination = result === 'OK' ? LINK1 : LINK2;
@@ -35,14 +36,14 @@ export default async function handler(req) {
       status: 302,
       headers: {
         'Location': destination,
-        'Set-Cookie': `${COOKIE}=${visitorId}; Max-Age=${DURATION}; Path=/; Secure; HttpOnly; SameSite=Lax`,
-        'Cache-Control': 'no-store'
-      }
+        'Set-Cookie': `saim_visitor=${visitorId}; Max-Age=${DURATION}; Path=/; Secure; HttpOnly; SameSite=Lax`,
+        'Cache-Control': 'no-store',
+      },
     });
 
   } catch (error) {
     return new Response('Redirect service error', {
-      status: 503
+      status: 503,
     });
   }
 }
