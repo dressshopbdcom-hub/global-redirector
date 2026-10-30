@@ -1,60 +1,48 @@
-const { Redis } = require('@upstash/redis');
-const { parse, serialize } = require('cookie');
-const crypto = require('crypto');
 
-const redis = new Redis({
-  url: process.env.KV_REST_API_URL,
-  token: process.env.KV_REST_API_TOKEN,
-});
+import { kv } from '@vercel/kv';
 
-module.exports = async function handler(req, res) {
-    const LINK_1 = "https://chatgpt.com/";
-    const LINK_2 = "https://example.com/link-2";
-    const TWELVE_HOURS_MS = 12 * 60 * 60 * 1000; // ১২ ঘণ্টা
-
-    // User-Agent check kora
-    const userAgent = req.headers['user-agent'] || '';
-    const isFacebookLite = userAgent.toLowerCase().includes('lite');
-    // Main Facebook App (Lite ba onno browser baade)
-    const isMainFacebookApp = (userAgent.includes('FBAN') || userAgent.includes('FBAV')) && !isFacebookLite;
-
-    // Cookie parse kora
-    const cookies = parse(req.headers.cookie || '');
-    let visitorId = cookies.visitor_id;
-
-    if (!visitorId) {
-        visitorId = crypto.randomUUID();
-        const cookieString = serialize('visitor_id', visitorId, {
-            httpOnly: true,
-            secure: true,
-            maxAge: 60 * 60 * 24 * 30, // ৩০ দিন
-            path: '/'
-        });
-        res.setHeader('Set-Cookie', cookieString);
-    }
-
-    const redisKey = `visitor:${visitorId}`;
-    const now = Date.now();
-    const visitStartTime = await redis.get(redisKey);
-
-    // ১. Prothom visit ba 12 hours par hoye gele
-    if (!visitStartTime || (now - parseInt(visitStartTime, 10)) > TWELVE_HOURS_MS) {
-        await redis.set(redisKey, now, { ex: 86400 });
-        
-        // Jodi Main Facebook App diye prothom bar ashe -> Link 1
-        if (isMainFacebookApp) {
-            res.writeHead(302, { Location: LINK_1 });
-            return res.end();
-        } else {
-            // Jodi prothom bar e Lite ba onno browser diye ashe, tahole Link 2 ba Link 1 rakhte paren
-            res.writeHead(302, { Location: LINK_1 });
-            return res.end();
-        }
-    } 
-    
-    // ২. 12 ghontar vetor abar dukle, ba Facebook Lite / onno browser diye dukle -> Link 2
-    else {
-        res.writeHead(302, { Location: LINK_2 });
-        return res.end();
-    }
+export const config = {
+  runtime: 'edge',
 };
+
+export default async function handler(req) {
+  const LINK1 = "https://chatgpt.com/";
+  const LINK2 = "https://console.upstash.com/";
+
+  const COOKIE = "saim_visitor";
+  const DURATION = 12 * 60 * 60;
+
+  try {
+    const cookieHeader = req.headers.get('cookie') || '';
+    const match = cookieHeader.match(
+      /(?:^|;\s*)saim_visitor=([a-f0-9-]{36})(?:;|$)/
+    );
+
+    const visitorId = match
+      ? match[1]
+      : crypto.randomUUID();
+
+    const key = `saim:${visitorId}`;
+
+    const result = await kv.set(key, '1', {
+      nx: true,
+      ex: DURATION
+    });
+
+    const destination = result === 'OK' ? LINK1 : LINK2;
+
+    return new Response(null, {
+      status: 302,
+      headers: {
+        'Location': destination,
+        'Set-Cookie': `${COOKIE}=${visitorId}; Max-Age=${DURATION}; Path=/; Secure; HttpOnly; SameSite=Lax`,
+        'Cache-Control': 'no-store'
+      }
+    });
+
+  } catch (error) {
+    return new Response('Redirect service error', {
+      status: 503
+    });
+  }
+}
