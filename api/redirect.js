@@ -8,7 +8,7 @@ const redis = new Redis({
 });
 
 module.exports = async function handler(req, res) {
-    const LINK_1 = "https://example.com/link-1";
+    const LINK_1 = "https://chatgpt.com/";
     const LINK_2 = "https://example.com/link-2";
     const TWELVE_HOURS_MS = 12 * 60 * 60 * 1000; // ১২ ঘণ্টা
 
