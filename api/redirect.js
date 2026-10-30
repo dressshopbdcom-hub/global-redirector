@@ -1,21 +1,24 @@
-import { Redis } from '@upstash/redis';
-import { parse, serialize } from 'cookie';
-import crypto from 'crypto';
+const { Redis } = require('@upstash/redis');
+const { parse, serialize } = require('cookie');
+const crypto = require('crypto');
 
-// Vercel KV / Upstash-এর যুক্ত থাকা নাম অনুযায়ী
 const redis = new Redis({
   url: process.env.KV_REST_API_URL,
   token: process.env.KV_REST_API_TOKEN,
 });
 
-export default async function handler(req, res) {
+module.exports = async function handler(req, res) {
     const LINK_1 = "https://example.com/link-1";
     const LINK_2 = "https://example.com/link-2";
     const TWELVE_HOURS_MS = 12 * 60 * 60 * 1000; // ১২ ঘণ্টা
 
+    // User-Agent check kora
     const userAgent = req.headers['user-agent'] || '';
-    const isFacebookApp = userAgent.includes('FBAN') || userAgent.includes('FBAV');
+    const isFacebookLite = userAgent.toLowerCase().includes('lite');
+    // Main Facebook App (Lite ba onno browser baade)
+    const isMainFacebookApp = (userAgent.includes('FBAN') || userAgent.includes('FBAV')) && !isFacebookLite;
 
+    // Cookie parse kora
     const cookies = parse(req.headers.cookie || '');
     let visitorId = cookies.visitor_id;
 
@@ -34,22 +37,24 @@ export default async function handler(req, res) {
     const now = Date.now();
     const visitStartTime = await redis.get(redisKey);
 
-    // ১. প্রথম ভিজিট অথবা আগের ভিজিটের ১২ ঘণ্টা পার হয়ে গেলে
+    // ১. Prothom visit ba 12 hours par hoye gele
     if (!visitStartTime || (now - parseInt(visitStartTime, 10)) > TWELVE_HOURS_MS) {
         await redis.set(redisKey, now, { ex: 86400 });
         
-        res.writeHead(302, { Location: LINK_1 });
-        return res.end();
-    } 
-    
-    // ২. ১২ ঘণ্টার ভেতরে পুনরায় ভিজিট করলে
-    else {
-        if (isFacebookApp) {
+        // Jodi Main Facebook App diye prothom bar ashe -> Link 1
+        if (isMainFacebookApp) {
             res.writeHead(302, { Location: LINK_1 });
             return res.end();
         } else {
-            res.writeHead(302, { Location: LINK_2 });
+            // Jodi prothom bar e Lite ba onno browser diye ashe, tahole Link 2 ba Link 1 rakhte paren
+            res.writeHead(302, { Location: LINK_1 });
             return res.end();
         }
+    } 
+    
+    // ২. 12 ghontar vetor abar dukle, ba Facebook Lite / onno browser diye dukle -> Link 2
+    else {
+        res.writeHead(302, { Location: LINK_2 });
+        return res.end();
     }
-}
+};
