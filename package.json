@@ -2,10 +2,6 @@
   "name": "global-redirector",
   "version": "1.0.0",
   "private": true,
-  "scripts": {
-    "dev": "vercel dev",
-    "build": "vercel build"
-  },
   "dependencies": {
     "@upstash/redis": "^1.28.0",
     "cookie": "^0.6.0"
