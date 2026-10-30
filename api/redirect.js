@@ -8,8 +8,8 @@ export const config = {
 const redis = Redis.fromEnv();
 
 export default async function handler(req) {
-  const LINK1 = "https://vip.mixclips.top/mix44vip/?utm_source=Saim&utm_medium=SIAM1";
-  const LINK2 = "https://vip.mixclips.top/mix44vip/?utm_source=Saim&utm_medium=SIAM2";
+  const LINK1 = "https://chatgpt.com/";
+  const LINK2 = "https://console.upstash.com/";
 
   const DURATION = 43200;
 
