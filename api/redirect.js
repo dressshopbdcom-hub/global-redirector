@@ -7,89 +7,120 @@ export const config = {
 
 const redis = Redis.fromEnv();
 
-const DURATION = 6 * 60 * 60; // 6 hours
+const DURATION = 6 * 60 * 60;
 
 const LINK1 = process.env.LINK_1;
 const LINK2 = process.env.LINK_2;
+const SECRET = process.env.IP_HASH_SECRET;
 
 function validUrl(value) {
   try {
     const url = new URL(value);
-    return url.protocol === 'https:' || url.protocol === 'http:';
+    return ['https:', 'http:'].includes(url.protocol);
   } catch {
     return false;
   }
 }
 
 function getClientIP(req) {
-  // Cloudflare visitor IP
-  const cfIP = req.headers.get('cf-connecting-ip');
+  // Only trust headers supplied by your
+  // verified hosting/proxy infrastructure.
+  const ip = req.headers.get('x-vercel-forwarded-for');
 
-  if (cfIP) return cfIP.trim();
-
-  // Vercel visitor IP
-  const forwarded = req.headers.get('x-forwarded-for');
-
-  if (forwarded) {
-    return forwarded.split(',')[0].trim();
+  if (ip) {
+    return ip.split(',')[0].trim();
   }
-
-  const realIP = req.headers.get('x-real-ip');
-
-  if (realIP) return realIP.trim();
 
   return null;
 }
 
-async function hashIP(ip) {
-  const data = new TextEncoder().encode(ip);
-  const hash = await crypto.subtle.digest('SHA-256', data);
+let hmacKeyPromise;
 
-  return Array.from(new Uint8Array(hash))
-    .map(b => b.toString(16).padStart(2, '0'))
+function getHmacKey() {
+  if (!hmacKeyPromise) {
+    const encoder = new TextEncoder();
+
+    hmacKeyPromise = crypto.subtle.importKey(
+      'raw',
+      encoder.encode(SECRET),
+      {
+        name: 'HMAC',
+        hash: 'SHA-256',
+      },
+      false,
+      ['sign']
+    );
+  }
+
+  return hmacKeyPromise;
+}
+
+async function hashIP(ip) {
+  const key = await getHmacKey();
+
+  const signature = await crypto.subtle.sign(
+    'HMAC',
+    key,
+    new TextEncoder().encode(ip)
+  );
+
+  return Array.from(new Uint8Array(signature))
+    .map(byte => byte.toString(16).padStart(2, '0'))
     .join('');
 }
 
-export default async function handler(req) {
+function redirect(destination) {
+  return new Response(null, {
+    status: 302,
+    headers: {
+      Location: destination,
+      'Cache-Control': 'private, no-store, max-age=0',
+      'Pragma': 'no-cache',
+      'Expires': '0',
+      'X-Robots-Tag': 'noindex, nofollow',
+    },
+  });
+}
 
+export default async function handler(req) {
   if (req.method !== 'GET' && req.method !== 'HEAD') {
     return new Response('Method Not Allowed', {
       status: 405,
-      headers: { Allow: 'GET, HEAD' },
+      headers: {
+        Allow: 'GET, HEAD',
+      },
     });
   }
 
-  if (!validUrl(LINK1) || !validUrl(LINK2)) {
-    return new Response('Invalid redirect configuration', {
+  if (
+    !validUrl(LINK1) ||
+    !validUrl(LINK2) ||
+    !SECRET ||
+    SECRET.length < 32
+  ) {
+    return new Response('Configuration Error', {
       status: 500,
     });
   }
 
-  // Get visitor IP
+  // HEAD requests must not consume first visits.
+  if (req.method === 'HEAD') {
+    return redirect(LINK2);
+  }
+
   const ip = getClientIP(req);
 
   if (!ip) {
-    return new Response('Unable to identify visitor IP', {
-      status: 503,
-    });
+    return redirect(LINK2);
   }
 
-  const headers = new Headers({
-    'Cache-Control': 'no-store, no-cache, must-revalidate',
-    'Pragma': 'no-cache',
-    'Expires': '0',
-  });
-
-  let destination;
-
   try {
+    const hash = await hashIP(ip);
 
-    // Hash IP for privacy
-    const visitorHash = await hashIP(ip);
+    const key = `saim:ip:v2:${hash}`;
 
-    // Global IP-based tracking
     const result = await redis.set(
-      `saim:ip:${visitorHash}`,
+      key,
       '1',
       {
         nx: true,
@@ -97,21 +128,13 @@ export default async function handler(req) {
       }
     );
 
-    // First visit = Link 1
-    // Next 6 hours = Link 2
-    destination = result === 'OK' ? LINK1 : LINK2;
+    return redirect(
+      result === 'OK' ? LINK1 : LINK2
+    );
 
   } catch (error) {
+    console.error('Redis Error:', error);
 
-    console.error('Redis Redirect Error:', error);
-
-    destination = LINK2;
+    return redirect(LINK2);
   }
-
-  headers.set('Location', destination);
-
-  return new Response(null, {
-    status: 302,
-    headers,
-  });
 }
