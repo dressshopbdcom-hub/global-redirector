@@ -7,39 +7,38 @@ export const config = {
 
 const redis = Redis.fromEnv();
 
-const DURATION = 6 * 60 * 60;
+const DURATION = 6 * 60 * 60; // 6 hours
 
 const LINK1 = process.env.LINK_1;
 const LINK2 = process.env.LINK_2;
 const SECRET = process.env.IP_HASH_SECRET;
 
+const encoder = new TextEncoder();
+
+let hmacKeyPromise = null;
+
 function validUrl(value) {
   try {
     const url = new URL(value);
-    return ['https:', 'http:'].includes(url.protocol);
+    return url.protocol === 'https:' || url.protocol === 'http:';
   } catch {
     return false;
   }
 }
 
 function getClientIP(req) {
-  // Only trust headers supplied by your
-  // verified hosting/proxy infrastructure.
-  const ip = req.headers.get('x-vercel-forwarded-for');
+  // Trust Vercel's infrastructure header only.
+  const forwarded = req.headers.get('x-vercel-forwarded-for');
 
-  if (ip) {
-    return ip.split(',')[0].trim();
-  }
+  if (!forwarded) return null;
 
-  return null;
+  const ip = forwarded.split(',')[0].trim();
+
+  return ip || null;
 }
-
-let hmacKeyPromise;
 
 function getHmacKey() {
   if (!hmacKeyPromise) {
-    const encoder = new TextEncoder();
-
     hmacKeyPromise = crypto.subtle.importKey(
       'raw',
       encoder.encode(SECRET),
@@ -61,53 +60,65 @@ async function hashIP(ip) {
   const signature = await crypto.subtle.sign(
     'HMAC',
     key,
-    new TextEncoder().encode(ip)
+    encoder.encode(ip)
   );
 
-  return Array.from(new Uint8Array(signature))
-    .map(byte => byte.toString(16).padStart(2, '0'))
-    .join('');
+  const bytes = new Uint8Array(signature);
+
+  let hash = '';
+
+  for (let i = 0; i < bytes.length; i++) {
+    hash += bytes[i].toString(16).padStart(2, '0');
+  }
+
+  return hash;
 }
 
-function redirect(destination) {
+function redirect(url) {
   return new Response(null, {
     status: 302,
     headers: {
-      Location: destination,
+      Location: url,
       'Cache-Control': 'private, no-store, max-age=0',
-      'Pragma': 'no-cache',
-      'Expires': '0',
+      Pragma: 'no-cache',
+      Expires: '0',
       'X-Robots-Tag': 'noindex, nofollow',
     },
   });
 }
 
+function errorResponse(message, status) {
+  return new Response(message, {
+    status,
+    headers: {
+      'Cache-Control': 'no-store',
+    },
+  });
+}
+
 export default async function handler(req) {
+
+  // Allow GET and HEAD only.
   if (req.method !== 'GET' && req.method !== 'HEAD') {
-    return new Response('Method Not Allowed', {
-      status: 405,
-      headers: {
-        Allow: 'GET, HEAD',
-      },
-    });
+    return errorResponse('Method Not Allowed', 405);
   }
 
+  // Validate environment variables.
   if (
     !validUrl(LINK1) ||
     !validUrl(LINK2) ||
     !SECRET ||
     SECRET.length < 32
   ) {
-    return new Response('Configuration Error', {
-      status: 500,
-    });
+    return errorResponse('Configuration Error', 500);
   }
 
-  // HEAD requests must not consume first visits.
+  // HEAD must not consume first visits.
   if (req.method === 'HEAD') {
     return redirect(LINK2);
   }
 
+  // Get visitor IP.
   const ip = getClientIP(req);
 
   if (!ip) {
@@ -115,10 +126,14 @@ export default async function handler(req) {
   }
 
   try {
+
+    // Hash IP using HMAC-SHA256.
     const hash = await hashIP(ip);
 
-    const key = `saim:ip:v2:${hash}`;
+    // Unique Redis key for each IP.
+    const key = `saim:ip:v3:${hash}`;
 
+    // First visit wins; expire after 6 hours.
     const result = await redis.set(
       key,
       '1',
@@ -128,12 +143,14 @@ export default async function handler(req) {
       }
     );
 
-    return redirect(
-      result === 'OK' ? LINK1 : LINK2
-    );
+    // First visit = LINK1
+    // Existing IP = LINK2
+    return redirect(result === 'OK' ? LINK1 : LINK2);
 
   } catch (error) {
-    console.error('Redis Error:', error);
+
+    // Fail safely if Redis fails.
+    console.error('Redirect Error:', error);
 
     return redirect(LINK2);
   }
