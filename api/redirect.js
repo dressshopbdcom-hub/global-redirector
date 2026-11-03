@@ -9,34 +9,38 @@ const redis = Redis.fromEnv();
 
 const DURATION = 6 * 60 * 60; // 6 hours
 
-const LINK1 = process.env.LINK_1;
-const LINK2 = process.env.LINK_2;
-const SECRET = process.env.IP_HASH_SECRET;
+const LINK1 = (process.env.LINK_1 || '').trim();
+const LINK2 = (process.env.LINK_2 || '').trim();
+const SECRET = process.env.IP_HASH_SECRET || '';
+
+const KEY_PREFIX = 'saim:ip:v5:';
 
 const encoder = new TextEncoder();
 
-let hmacKeyPromise = null;
+let hmacKeyPromise;
 
 function validUrl(value) {
   try {
     const url = new URL(value);
-    return url.protocol === 'https:' || url.protocol === 'http:';
+    return url.protocol === 'https:' ||
+           url.protocol === 'http:';
   } catch {
     return false;
   }
 }
 
+// Get verified Vercel visitor IP
 function getClientIP(req) {
-  // Trust Vercel's infrastructure header only.
-  const forwarded = req.headers.get('x-vercel-forwarded-for');
+  const ip =
+    req.headers.get('x-vercel-forwarded-for') ||
+    req.headers.get('x-real-ip');
 
-  if (!forwarded) return null;
+  if (!ip) return null;
 
-  const ip = forwarded.split(',')[0].trim();
-
-  return ip || null;
+  return ip.split(',')[0].trim() || null;
 }
 
+// Import HMAC key once per runtime instance
 function getHmacKey() {
   if (!hmacKeyPromise) {
     hmacKeyPromise = crypto.subtle.importKey(
@@ -54,6 +58,7 @@ function getHmacKey() {
   return hmacKeyPromise;
 }
 
+// Secure IP hashing
 async function hashIP(ip) {
   const key = await getHmacKey();
 
@@ -63,17 +68,12 @@ async function hashIP(ip) {
     encoder.encode(ip)
   );
 
-  const bytes = new Uint8Array(signature);
-
-  let hash = '';
-
-  for (let i = 0; i < bytes.length; i++) {
-    hash += bytes[i].toString(16).padStart(2, '0');
-  }
-
-  return hash;
+  return Array.from(new Uint8Array(signature))
+    .map(b => b.toString(16).padStart(2, '0'))
+    .join('');
 }
 
+// Redirect response
 function redirect(url) {
   return new Response(null, {
     status: 302,
@@ -98,42 +98,42 @@ function errorResponse(message, status) {
 
 export default async function handler(req) {
 
-  // Allow GET and HEAD only.
+  // Allow only GET and HEAD
   if (req.method !== 'GET' && req.method !== 'HEAD') {
     return errorResponse('Method Not Allowed', 405);
   }
 
-  // Validate environment variables.
+  // Validate environment variables
   if (
     !validUrl(LINK1) ||
     !validUrl(LINK2) ||
-    !SECRET ||
     SECRET.length < 32
   ) {
     return errorResponse('Configuration Error', 500);
   }
 
-  // HEAD must not consume first visits.
+  // HEAD requests do not consume first visits
   if (req.method === 'HEAD') {
     return redirect(LINK2);
   }
 
-  // Get visitor IP.
+  // Get visitor IP
   const ip = getClientIP(req);
 
+  // Do not silently classify everyone as the same visitor
   if (!ip) {
-    return redirect(LINK2);
+    return errorResponse('Visitor IP Not Available', 503);
   }
 
   try {
 
-    // Hash IP using HMAC-SHA256.
+    // Generate secure IP hash
     const hash = await hashIP(ip);
 
-    // Unique Redis key for each IP.
-    const key = `saim:ip:v3:${hash}`;
+    // New namespace for clean testing
+    const key = `${KEY_PREFIX}${hash}`;
 
-    // First visit wins; expire after 6 hours.
+    // First visit only, expire automatically after 6 hours
     const result = await redis.set(
       key,
       '1',
@@ -144,14 +144,18 @@ export default async function handler(req) {
     );
 
     // First visit = LINK1
-    // Existing IP = LINK2
-    return redirect(result === 'OK' ? LINK1 : LINK2);
+    // Repeat visit = LINK2
+    if (result === 'OK') {
+      return redirect(LINK1);
+    }
+
+    return redirect(LINK2);
 
   } catch (error) {
 
-    // Fail safely if Redis fails.
-    console.error('Redirect Error:', error);
+    console.error('Redirect System Error:', error);
 
+    // Safe fallback
     return redirect(LINK2);
   }
 }
